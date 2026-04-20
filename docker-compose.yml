@@ -1,0 +1,24 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: obesity-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./mlruns:/app/mlruns
+      - ./archive (1):/app/archive (1)
+    command: python -m uvicorn app:app --host 0.0.0.0 --port 8000
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: obesity-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/app/mlruns
+    command: python -m mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri file:/app/mlruns

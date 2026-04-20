@@ -1,0 +1,10 @@
+artifact_location: file:///E:/AliBotheiana/mlruns/133174360461889452/models/m-3ce24c51895146ada86adeb724016fd2/artifacts
+creation_timestamp: 1776726062086
+experiment_id: '133174360461889452'
+last_updated_timestamp: 1776726069750
+model_id: m-3ce24c51895146ada86adeb724016fd2
+model_type: null
+name: model
+source_run_id: b94f0a1c5a5a434894956842959755e3
+status: 2
+status_message: null

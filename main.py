@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+from mlflow_utils import log_training_run
 from model_pipeline import (
     evaluate_model,
     load_model,
@@ -64,8 +65,23 @@ def main() -> None:
         model = train_model(X_train, y_train)
         metrics = evaluate_model(model, X_test, y_test)
         saved_path = save_model(model, args.model_path)
+        mlflow_info = log_training_run(
+            model=model,
+            params={
+                "model_type": "RandomForestClassifier",
+                "test_size": args.test_size,
+                "random_state": args.random_state,
+                "n_estimators": model.n_estimators,
+                "class_weight": str(model.class_weight),
+                "data_path": str(args.data_path),
+                "model_path": str(args.model_path),
+            },
+            metrics=metrics,
+        )
 
         print(f"Model saved to: {saved_path}")
+        print(f"MLflow run_id: {mlflow_info['run_id']}")
+        print(f"MLflow tracking URI: {mlflow_info['tracking_uri']}")
         print(json.dumps(metrics, indent=2))
         return
 

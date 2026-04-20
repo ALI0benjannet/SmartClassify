@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+*.pyc
+*.pyo
+*.pyd
+*.log
+.vscode
+archive (1)/Obesity_Dataset.xlsx
+archive (1)/10.33484-sinopfbd.1445215-3764172.pdf

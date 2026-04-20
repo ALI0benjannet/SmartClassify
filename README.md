@@ -2,6 +2,63 @@
 
 Ce projet transforme un script Jupyter en code Python modulaire pour classifier le jeu de données `Obesity_Dataset.arff` avec un **RandomForestClassifier**.
 
+## Parcours complet : Atelier 1 a Atelier 4
+
+### Atelier 1 : Script Jupyter fonctionnel
+
+Objectif : obtenir un premier pipeline machine learning qui fonctionne de bout en bout dans un notebook.
+
+Realise dans le projet :
+
+- preparation des donnees du dataset Obesity,
+- entrainement initial du modele,
+- evaluation des performances,
+- verification des metriques obtenues.
+
+Resultat : base de travail validee pour passer a la modularisation.
+
+### Atelier 2 : Modularisation du code
+
+Objectif : transformer le notebook en code Python structure avec des fonctions reutilisables.
+
+Realise dans le projet :
+
+- creation de [model_pipeline.py](model_pipeline.py) avec :
+  - prepare_data()
+  - train_model()
+  - evaluate_model()
+  - save_model()
+  - load_model()
+- creation de [main.py](main.py) pour executer train/evaluate en ligne de commande.
+
+Resultat : pipeline ML modulaire, maintenable et reutilisable.
+
+### Atelier 3 : Automatisation avec Makefile
+
+Objectif : automatiser l'execution du projet et les etapes CI.
+
+Realise dans le projet :
+
+- creation de [Makefile](Makefile) avec les cibles : install, train, evaluate, api, format, lint, security, test, ci,
+- creation de [requirements.txt](requirements.txt),
+- ajout de [test_model_pipeline.py](test_model_pipeline.py) pour valider le pipeline.
+
+Resultat : execution simplifiee avec des commandes standardisees.
+
+### Atelier 4 : Exposition REST avec FastAPI
+
+Objectif : exposer la prediction en service REST.
+
+Realise dans le projet :
+
+- creation de [app.py](app.py),
+- endpoint `POST /predict` pour la prediction,
+- endpoint `POST /retrain` pour le reentrainement (excellence),
+- endpoint `GET /example-request` pour une requete d'exemple,
+- acces a la documentation interactive via /docs.
+
+Resultat : API REST operationnelle pour integration dans d'autres applications.
+
 ## Modèle utilisé
 
 - Modèle : `RandomForestClassifier`
@@ -191,25 +248,64 @@ Statut de verification :
 
 - Verification HTTP effectuee : code 200 sur /docs
 
+3. Tester votre prediction en exposant le service REST avec FastAPI.
+
+- Verifier que l'endpoint `POST /predict` est fonctionnel depuis Swagger (`/docs`) ou avec une requete REST.
+- Une reponse valide retourne un JSON de type :
+
+```json
+{
+  "predicted_class": 2
+}
+```
+
+### Excellence : affichage web du resultat selon les criteres saisis
+
+Une solution web a ete ajoutee dans ce projet pour saisir les criteres et afficher le resultat de prediction.
+
+- URL de l'interface web : http://127.0.0.1:8000/web
+- Cette page consomme le service `POST /predict` et affiche directement la classe predite.
+- Technologie utilisee : interface HTML/JavaScript servie par FastAPI (solution web "autres").
+
 ### Captures de resultat (3 captures)
 
 #### Capture 1 - Documentation Swagger
 
-Capture attendue : page principale Swagger UI avec les routes `GET /`, `POST /predict`, `POST /retrain`, `GET /example-request`.
+Capture validee : page principale Swagger UI accessible via `http://127.0.0.1:8000/docs`.
 
-Placez ici la capture de la page : `http://127.0.0.1:8000/docs`
+Elements visibles :
+
+- titre `Obesity Model API`,
+- endpoints `GET /`, `POST /predict`, `POST /retrain`, `GET /example-request`,
+- schemas de reponse (`PredictionRequest`, `PredictionResponse`, `RetrainRequest`, `RetrainResponse`).
+
+Legende suggeree :
+Capture 1 - Documentation interactive FastAPI chargee avec succes.
 
 #### Capture 2 - Endpoint /retrain
 
-Capture attendue : panneau `POST /retrain` avec le `Request body` et les reponses possibles (`200`, `422`).
+Capture validee : panneau `POST /retrain` ouvert dans Swagger.
 
-Placez ici la capture de l'endpoint : `POST /retrain`
+Elements visibles :
+
+- `Request body` JSON avec `data_path`, `model_path`, `test_size`, `random_state`,
+- reponses `200 Successful Response` et `422 Validation Error`.
+
+Legende suggeree :
+Capture 2 - Verification de l'endpoint `/retrain` et de son schema d'entree/sortie.
 
 #### Capture 3 - Endpoint /predict
 
-Capture attendue : panneau `POST /predict` avec le schema du JSON d'entree et la reponse `predicted_class`.
+Capture validee : panneau `POST /predict` ouvert dans Swagger.
 
-Placez ici la capture de l'endpoint : `POST /predict`
+Elements visibles :
+
+- schema du JSON d'entree (criteres utilisateur),
+- reponse `200` avec `predicted_class`,
+- section des erreurs de validation.
+
+Legende suggeree :
+Capture 3 - Verification de l'endpoint `/predict` pour la prediction de classe.
 
 ### Routes disponibles
 
@@ -321,5 +417,90 @@ Les validations suivantes ont été exécutées avec succès :
 - Accuracy : `0.860248447204969`
 - Macro avg F1-score : `0.8183`
 - Weighted avg F1-score : `0.8574`
+
+## Atelier 5 : Introduction a MLflow
+
+### Objectifs
+
+- Comprendre le role de MLflow pour suivre les executions et gerer les modeles.
+- Configurer MLflow pour ce projet.
+
+### Integration realisee dans le projet
+
+- Suivi des experiences avec `mlflow.log_params()` et `mlflow.log_metrics()`.
+- Enregistrement du modele avec `mlflow.sklearn.log_model()`.
+- Configuration locale du tracking dans le dossier `mlruns` via [mlflow_utils.py](mlflow_utils.py).
+- Journalisation automatique pendant :
+  - l'entrainement CLI dans [main.py](main.py),
+  - le reentrainement API dans [app.py](app.py) (`POST /retrain`).
+
+### Commandes MLflow
+
+1. Lancer un entrainement pour generer un run :
+
+```bash
+make train
+```
+
+2. Ouvrir l'interface MLflow :
+
+```bash
+make mlflow-ui
+```
+
+3. Consulter l'UI MLflow dans le navigateur :
+
+- http://127.0.0.1:5000
+
+### Livrable Atelier 5
+
+Le projet est integre avec MLflow : suivi des parametres/metriques, stockage des runs et enregistrement des modeles dans l'interface MLflow.
+
+## Seance 6 : Conteneurisation avec Docker
+
+### Objectifs
+
+- Conteneuriser l'API FastAPI pour un deploiement reproductible.
+- Lancer l'API et MLflow dans des conteneurs.
+
+### Fichiers Docker ajoutes
+
+- [Dockerfile](Dockerfile)
+- [docker-compose.yml](docker-compose.yml)
+- [.dockerignore](.dockerignore)
+
+### Commandes Docker (image seule)
+
+```bash
+make docker-build
+make docker-run
+```
+
+Tester l'API conteneurisee :
+
+- http://127.0.0.1:8000/docs
+
+Arreter le conteneur :
+
+```bash
+make docker-stop
+```
+
+### Commandes Docker Compose (API + MLflow)
+
+```bash
+make docker-compose-up
+```
+
+Liens de test :
+
+- API Swagger : http://127.0.0.1:8000/docs
+- MLflow UI : http://127.0.0.1:5000
+
+Arret des services :
+
+```bash
+make docker-compose-down
+```
 
 
