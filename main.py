@@ -77,6 +77,7 @@ def main() -> None:
                 "model_path": str(args.model_path),
             },
             metrics=metrics,
+            training_data=X_train.assign(Class=y_train),
         )
 
         print(f"Model saved to: {saved_path}")

@@ -401,6 +401,14 @@ Fichier livré :
 
 - [app.py](app.py)
 
+### Atelier 5 : MLflow avec backend SQL
+
+Le suivi d'experimentation utilise maintenant SQLite via [mlflow.db](mlflow.db), et les artefacts sont stockes dans [mlartifacts](mlartifacts) afin de garder le backend de tracking propre et compatible avec l'onglet Overview de MLflow.
+
+Fichier de configuration principal :
+
+- [mlflow_utils.py](mlflow_utils.py)
+
 ## Validation finale
 
 Les validations suivantes ont été exécutées avec succès :
@@ -429,7 +437,7 @@ Les validations suivantes ont été exécutées avec succès :
 
 - Suivi des experiences avec `mlflow.log_params()` et `mlflow.log_metrics()`.
 - Enregistrement du modele avec `mlflow.sklearn.log_model()`.
-- Configuration locale du tracking dans le dossier `mlruns` via [mlflow_utils.py](mlflow_utils.py).
+- Configuration locale du tracking dans [mlflow.db](mlflow.db) avec artefacts dans [mlartifacts](mlartifacts) via [mlflow_utils.py](mlflow_utils.py).
 - Journalisation automatique pendant :
   - l'entrainement CLI dans [main.py](main.py),
   - le reentrainement API dans [app.py](app.py) (`POST /retrain`).
@@ -502,5 +510,87 @@ Arret des services :
 ```bash
 make docker-compose-down
 ```
+
+## Seance 7 : Supervision continue
+
+### Objectifs
+
+- Verifier en continu la disponibilite de l'API et de MLflow.
+- Controler les compteurs de supervision dans la base SQL MLflow.
+- Disposer d'un rapport rapide pour diagnostiquer les erreurs "No data available".
+
+### Livrables
+
+- [monitoring_report.py](monitoring_report.py)
+- Cibles Makefile `monitor` et `monitor-strict`
+- Interface de test moderne : [app.py](app.py) via `/interface` et `/web`
+
+### Commandes
+
+1. Lancer les services :
+
+```bash
+make api
+make mlflow-ui
+```
+
+2. Executer le rapport de supervision :
+
+```bash
+make monitor
+```
+
+3. Executer la supervision stricte avec alertes bloquantes :
+
+```bash
+make monitor-strict
+```
+
+4. Generer des donnees reelles pour les graphes MLflow Overview :
+
+```bash
+make traffic
+```
+
+Pour plus de volume (demo/capture ecran) :
+
+```bash
+make traffic-heavy
+```
+
+### Interface de test moderne
+
+Ouvrir l'interface principale du projet dans le navigateur :
+
+- http://127.0.0.1:8000/interface
+
+Cette interface permet de :
+
+- saisir les criteres du modele,
+- lancer une prediction en direct,
+- voir le resultat immediatement,
+- consulter des statistiques live du projet.
+
+Le rapport affiche :
+
+- statut HTTP de `http://127.0.0.1:8000/docs`,
+- statut HTTP de `http://127.0.0.1:5000`,
+- compteurs MLflow (`runs`, `metrics`, `datasets`, `inputs`, `evaluation_datasets`, `trace_info`).
+- alertes automatiques si les seuils minimums ne sont pas atteints.
+
+### Resultat attendu
+
+- `api.ok = true`
+- `mlflow.ok = true`
+- `mlflow_store.exists = true`
+
+Si `evaluation_datasets` ou `trace_info` valent 0, il faut relancer au moins une prediction (`POST /predict`) ou un entrainement (`make train`).
+
+En mode strict, la commande echoue si :
+
+- l'API ou MLflow ne repond pas,
+- la base MLflow est absente,
+- `trace_info` est inferieur au seuil attendu,
+- `evaluation_datasets` est inferieur au seuil attendu.
 
 

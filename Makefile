@@ -4,7 +4,7 @@ PIP ?= $(PYTHON) -m pip
 DATA_PATH := archive (1)/Obesity_Dataset.arff
 MODEL_PATH := artifacts/obesity_model.joblib
 
-.PHONY: install train evaluate api mlflow-ui docker-build docker-run docker-stop docker-logs docker-compose-up docker-compose-down format lint security test ci clean help
+.PHONY: install train evaluate api mlflow-ui monitor monitor-strict traffic traffic-heavy docker-build docker-run docker-stop docker-logs docker-compose-up docker-compose-down format lint security test ci clean help
 
 install:
 	$(PIP) install -r requirements.txt
@@ -19,13 +19,25 @@ api:
 	$(PYTHON) -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 mlflow-ui:
-	$(PYTHON) -m mlflow ui --host 127.0.0.1 --port 5000 --backend-store-uri file:./mlruns
+	$(PYTHON) -m mlflow ui --host 127.0.0.1 --port 5000 --backend-store-uri sqlite:///./mlflow.db
+
+monitor:
+	$(PYTHON) monitoring_report.py
+
+monitor-strict:
+	$(PYTHON) monitoring_report.py --fail-on-alert --min-traces 1 --min-evaluation-datasets 1
+
+traffic:
+	$(PYTHON) generate_traffic.py --ok-count 20 --error-count 5 --sleep-ms 50
+
+traffic-heavy:
+	$(PYTHON) generate_traffic.py --ok-count 100 --error-count 20 --sleep-ms 20
 
 docker-build:
 	docker build -t obesity-mlops:latest .
 
 docker-run:
-	docker run --name obesity-api -p 8000:8000 -v "$(CURDIR)/artifacts:/app/artifacts" -v "$(CURDIR)/mlruns:/app/mlruns" -v "$(CURDIR)/archive (1):/app/archive (1)" obesity-mlops:latest
+	docker run --name obesity-api -p 8000:8000 -v "$(CURDIR)/artifacts:/app/artifacts" -v "$(CURDIR)/mlflow.db:/app/mlflow.db" -v "$(CURDIR)/mlartifacts:/app/mlartifacts" -v "$(CURDIR)/archive (1):/app/archive (1)" obesity-mlops:latest
 
 docker-stop:
 	docker stop obesity-api ; docker rm obesity-api
@@ -63,6 +75,10 @@ help:
 	@echo "  evaluate  - Evaluate the saved model"
 	@echo "  api       - Start FastAPI server (http://0.0.0.0:8000)"
 	@echo "  mlflow-ui - Start MLflow UI (http://127.0.0.1:5000)"
+	@echo "  monitor   - Show supervision report (API/MLflow/DB)"
+	@echo "  monitor-strict - Fail when supervision alert thresholds are not met"
+	@echo "  traffic   - Send real requests to /predict for MLflow charts"
+	@echo "  traffic-heavy - Send larger request volume for denser charts"
 	@echo "  docker-build       - Build Docker image for the project"
 	@echo "  docker-run         - Run FastAPI container on port 8000"
 	@echo "  docker-stop        - Stop and remove FastAPI container"
