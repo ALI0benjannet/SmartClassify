@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+*.egg-info/
+dist/
+build/
+
+# MLflow / artifacts binaires
+mlflow.db
+mlruns/
+mlartifacts/
+artifacts/obesity_model.joblib
+
+# Données ingérées (générées au runtime)
+data/
+
+# Node.js / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS
+.DS_Store
+Thumbs.db

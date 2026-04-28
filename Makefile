@@ -3,8 +3,13 @@ PIP ?= $(PYTHON) -m pip
 
 DATA_PATH := archive (1)/Obesity_Dataset.arff
 MODEL_PATH := artifacts/obesity_model.joblib
+IMAGE_NAME ?= obesity-mlops
+IMAGE_TAG ?= latest
+DOCKERHUB_USER ?= your-dockerhub-user
+LOCAL_IMAGE := $(IMAGE_NAME):$(IMAGE_TAG)
+REMOTE_IMAGE := $(DOCKERHUB_USER)/$(IMAGE_NAME):$(IMAGE_TAG)
 
-.PHONY: install train evaluate api mlflow-ui monitor monitor-strict traffic traffic-heavy docker-build docker-run docker-stop docker-logs docker-compose-up docker-compose-down format lint security test ci clean help
+.PHONY: install train evaluate api mlflow-ui monitor monitor-strict traffic traffic-heavy docker-login docker-build docker-tag docker-push docker-publish docker-run docker-stop docker-logs docker-compose-up docker-compose-down format lint security test ci clean help
 
 install:
 	$(PIP) install -r requirements.txt
@@ -33,11 +38,22 @@ traffic:
 traffic-heavy:
 	$(PYTHON) generate_traffic.py --ok-count 100 --error-count 20 --sleep-ms 20
 
+docker-login:
+	docker login --username $(DOCKERHUB_USER)
+
 docker-build:
-	docker build -t obesity-mlops:latest .
+	docker build -t $(LOCAL_IMAGE) .
+
+docker-tag:
+	docker tag $(LOCAL_IMAGE) $(REMOTE_IMAGE)
+
+docker-push: docker-tag
+	docker push $(REMOTE_IMAGE)
+
+docker-publish: docker-build docker-tag docker-push
 
 docker-run:
-	docker run --name obesity-api -p 8000:8000 -v "$(CURDIR)/artifacts:/app/artifacts" -v "$(CURDIR)/mlflow.db:/app/mlflow.db" -v "$(CURDIR)/mlartifacts:/app/mlartifacts" -v "$(CURDIR)/archive (1):/app/archive (1)" obesity-mlops:latest
+	docker run --name obesity-api -p 8000:8000 -v "$(CURDIR)/artifacts:/app/artifacts" -v "$(CURDIR)/mlflow.db:/app/mlflow.db" -v "$(CURDIR)/mlartifacts:/app/mlartifacts" -v "$(CURDIR)/archive (1):/app/archive (1)" $(LOCAL_IMAGE)
 
 docker-stop:
 	docker stop obesity-api ; docker rm obesity-api
@@ -79,7 +95,11 @@ help:
 	@echo "  monitor-strict - Fail when supervision alert thresholds are not met"
 	@echo "  traffic   - Send real requests to /predict for MLflow charts"
 	@echo "  traffic-heavy - Send larger request volume for denser charts"
-	@echo "  docker-build       - Build Docker image for the project"
+	@echo "  docker-login       - Log in to Docker Hub"
+	@echo "  docker-build       - Build local Docker image"
+	@echo "  docker-tag         - Tag image for Docker Hub ($(REMOTE_IMAGE))"
+	@echo "  docker-push        - Push tagged image to Docker Hub"
+	@echo "  docker-publish     - Build, tag, and push in one command"
 	@echo "  docker-run         - Run FastAPI container on port 8000"
 	@echo "  docker-stop        - Stop and remove FastAPI container"
 	@echo "  docker-logs        - Show logs from FastAPI container"

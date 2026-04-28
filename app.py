@@ -6,8 +6,11 @@ curl -X POST "http://127.0.0.1:8000/predict" -H "Content-Type: application/json"
 
 from __future__ import annotations
 
+import csv
 import sqlite3
+import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +34,15 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_PATH = BASE_DIR / "archive (1)" / "Obesity_Dataset.arff"
 DEFAULT_MODEL_PATH = BASE_DIR / "artifacts" / "obesity_model.joblib"
 DEFAULT_TRACKING_DB = BASE_DIR / "mlflow.db"
+INGESTED_DATA_PATH = BASE_DIR / "data" / "ingested.csv"
+INGESTED_COLUMNS = [
+    "Sex", "Age", "Height", "Overweight_Obese_Family", "Consumption_of_Fast_Food",
+    "Frequency_of_Consuming_Vegetables", "Number_of_Main_Meals_Daily",
+    "Food_Intake_Between_Meals", "Smoking", "Liquid_Intake_Daily",
+    "Calculation_of_Calorie_Intake", "Physical_Excercise",
+    "Schedule_Dedicated_to_Technology", "Type_of_Transportation_Used", "Class",
+]
+AUTO_RETRAIN_EVERY = 2  # déclenche le réentraînement tous les N enregistrements
 
 CLASS_LABELS = {
     1: "Poids insuffisant",
@@ -38,6 +50,140 @@ CLASS_LABELS = {
     3: "Surpoids",
     4: "Obesite",
 }
+
+# ─── Ingestion & auto-retrain state ──────────────────────────────────────────
+
+_ingestion_lock = threading.Lock()
+_training_status: dict[str, Any] = {
+    "status": "idle",         # idle | training | done | error
+    "ingested_count": 0,
+    "last_trained_at": None,
+    "trigger_count": None,
+    "metrics": None,
+    "error": None,
+}
+
+
+def _count_ingested() -> int:
+    """Return number of rows in the ingested CSV (excluding header)."""
+    if not INGESTED_DATA_PATH.exists():
+        return 0
+    with INGESTED_DATA_PATH.open("r", encoding="utf-8") as f:
+        return max(0, sum(1 for _ in f) - 1)
+
+
+def _ingest_record(payload: "PredictionRequest", predicted_class: int) -> None:
+    """Append one prediction input + pseudo-label to ingested.csv and trigger retrain if needed."""
+    global _training_status
+
+    row = {
+        "Sex": payload.Sex,
+        "Age": payload.Age,
+        "Height": payload.Height,
+        "Overweight_Obese_Family": payload.Overweight_Obese_Family,
+        "Consumption_of_Fast_Food": payload.Consumption_of_Fast_Food,
+        "Frequency_of_Consuming_Vegetables": payload.Frequency_of_Consuming_Vegetables,
+        "Number_of_Main_Meals_Daily": payload.Number_of_Main_Meals_Daily,
+        "Food_Intake_Between_Meals": payload.Food_Intake_Between_Meals,
+        "Smoking": payload.Smoking,
+        "Liquid_Intake_Daily": payload.Liquid_Intake_Daily,
+        "Calculation_of_Calorie_Intake": payload.Calculation_of_Calorie_Intake,
+        "Physical_Excercise": payload.Physical_Excercise,
+        "Schedule_Dedicated_to_Technology": payload.Schedule_Dedicated_to_Technology,
+        "Type_of_Transportation_Used": payload.Type_of_Transportation_Used,
+        "Class": predicted_class,
+    }
+
+    with _ingestion_lock:
+        INGESTED_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+        write_header = not INGESTED_DATA_PATH.exists()
+        with INGESTED_DATA_PATH.open("a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=INGESTED_COLUMNS)
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
+
+        count = _count_ingested()
+        _training_status["ingested_count"] = count
+
+        should_retrain = (
+            count > 0
+            and count % AUTO_RETRAIN_EVERY == 0
+            and _training_status["status"] != "training"
+        )
+
+    if should_retrain:
+        t = threading.Thread(target=_background_retrain, args=(count,), daemon=True)
+        t.start()
+
+
+def _background_retrain(trigger_count: int) -> None:
+    """Background thread: merge original ARFF + ingested CSV and retrain the model."""
+    global _model, _training_status
+
+    _training_status.update({
+        "status": "training",
+        "trigger_count": trigger_count,
+        "error": None,
+    })
+
+    try:
+        from model_pipeline import load_arff_data, train_model, evaluate_model, save_model
+        from sklearn.model_selection import train_test_split
+
+        original_df = load_arff_data(DEFAULT_DATA_PATH)
+
+        if INGESTED_DATA_PATH.exists():
+            ingested_df = pd.read_csv(INGESTED_DATA_PATH)
+            combined_df = pd.concat([original_df, ingested_df], ignore_index=True)
+        else:
+            combined_df = original_df
+
+        X = combined_df.drop(columns=["Class"])
+        y = combined_df["Class"]
+        X = X.apply(pd.to_numeric, errors="coerce")
+        X = X.fillna(X.median(numeric_only=True))
+        y = pd.to_numeric(y, errors="coerce").dropna()
+        X = X.loc[y.index]
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
+        )
+
+        new_model = train_model(X_train, y_train)
+        metrics = evaluate_model(new_model, X_test, y_test)
+        save_model(new_model, DEFAULT_MODEL_PATH)
+        log_training_run(
+            model=new_model,
+            params={
+                "model_type": "RandomForestClassifier",
+                "test_size": 0.2,
+                "random_state": 42,
+                "n_estimators": new_model.n_estimators,
+                "class_weight": str(new_model.class_weight),
+                "data_path": str(DEFAULT_DATA_PATH),
+                "model_path": str(DEFAULT_MODEL_PATH),
+                "source": "auto_retrain",
+                "ingested_count": trigger_count,
+            },
+            metrics=metrics,
+            training_data=pd.concat([X_train, y_train.rename("Class")], axis=1),
+        )
+
+        _model = new_model
+        numeric_metrics = {k: v for k, v in metrics.items() if isinstance(v, (int, float))}
+        _training_status.update({
+            "status": "done",
+            "last_trained_at": datetime.now(timezone.utc).isoformat(),
+            "metrics": numeric_metrics,
+            "error": None,
+        })
+
+    except Exception as exc:  # pragma: no cover
+        _training_status.update({
+            "status": "error",
+            "error": str(exc),
+        })
 
 
 class PredictionRequest(BaseModel):
@@ -869,6 +1015,11 @@ def predict(payload: PredictionRequest) -> PredictionResponse:
 
     predicted_label = CLASS_LABELS.get(final_prediction, f"Classe {final_prediction}")
 
+    # Fire-and-forget ingestion in background (non-blocking)
+    threading.Thread(
+        target=_ingest_record, args=(payload, final_prediction), daemon=True
+    ).start()
+
     return PredictionResponse(
         predicted_class=final_prediction,
         predicted_label=predicted_label,
@@ -930,6 +1081,16 @@ def retrain(request: RetrainRequest) -> RetrainResponse:
         model_path=str(model_path),
         metrics=metrics,
     )
+
+
+@app.get("/training-status")
+def training_status() -> dict[str, Any]:
+    """Return the current auto-retrain status and ingestion counter."""
+    return {
+        **_training_status,
+        "ingested_count": _count_ingested(),
+        "auto_retrain_every": AUTO_RETRAIN_EVERY,
+    }
 
 
 @app.get("/example-request")
