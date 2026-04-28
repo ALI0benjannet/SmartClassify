@@ -17,7 +17,7 @@ export default function App() {
           </Routes>
         </main>
         <footer className="border-t border-white/8 py-4 px-6 text-center text-xs text-slate-600">
-          Obesity MLOps Studio — API sur{' '}
+          SmartClassify — API sur{' '}
           <a href="http://localhost:8001/docs" target="_blank" rel="noreferrer"
             className="text-slate-500 hover:text-slate-400 transition-colors">
             localhost:8001

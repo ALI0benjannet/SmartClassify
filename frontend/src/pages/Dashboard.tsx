@@ -191,7 +191,7 @@ export default function Dashboard() {
             Tableau de bord en direct
           </span>
           <h1 className="text-4xl font-extrabold text-white leading-tight">
-            Obesity <span className="text-blue-400">MLOps</span> Dashboard
+            Smart<span className="text-blue-400">Classify</span> Dashboard
           </h1>
           <p className="text-slate-400 mt-2 text-sm">
             Données en temps réel depuis l'API et la base MLflow.

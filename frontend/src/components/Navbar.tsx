@@ -18,7 +18,7 @@ export default function Navbar() {
             🫀
           </div>
           <span className="font-extrabold text-white text-lg tracking-tight hidden sm:block">
-            Obesity <span className="text-blue-400">MLOps</span>
+            Smart<span className="text-blue-400">Classify</span>
           </span>
         </div>
 
