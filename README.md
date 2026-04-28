@@ -470,6 +470,8 @@ Le projet est integre avec MLflow : suivi des parametres/metriques, stockage des
 
 - Conteneuriser l'API FastAPI pour un deploiement reproductible.
 - Lancer l'API et MLflow dans des conteneurs.
+- Utiliser les artefacts MLflow dans le conteneur (base SQLite + dossier d'artefacts).
+- Produire une image Docker deployable et publiable sur Docker Hub.
 
 ### Fichiers Docker ajoutes
 
@@ -494,6 +496,43 @@ Arreter le conteneur :
 make docker-stop
 ```
 
+### Build et push sur Docker Hub
+
+1. Se connecter a Docker Hub :
+
+```bash
+docker login
+```
+
+2. Builder l'image :
+
+```bash
+make docker-build
+```
+
+3. Tagger et pousser (remplacer par votre user Docker Hub) :
+
+```bash
+make docker-push DOCKERHUB_USER=<votre_user> IMAGE_NAME=obesity-mlops IMAGE_TAG=latest
+```
+
+Image publiee :
+
+```text
+docker.io/<votre_user>/obesity-mlops:latest
+```
+
+Execution depuis Docker Hub :
+
+```bash
+docker run --name obesity-api -p 8000:8000 \
+  -v "$(pwd)/artifacts:/app/artifacts" \
+  -v "$(pwd)/mlflow.db:/app/mlflow.db" \
+  -v "$(pwd)/mlartifacts:/app/mlartifacts" \
+  -v "$(pwd)/archive (1):/app/archive (1)" \
+  <votre_user>/obesity-mlops:latest
+```
+
 ### Commandes Docker Compose (API + MLflow)
 
 ```bash
@@ -510,6 +549,12 @@ Arret des services :
 ```bash
 make docker-compose-down
 ```
+
+### Livrable Atelier 6
+
+- Une image Docker deployable (`obesity-mlops:latest`).
+- Un workflow documente de publication Docker Hub.
+- Des volumes montes pour reutiliser les artefacts MLflow (`mlflow.db` et `mlartifacts`) dans les conteneurs.
 
 ## Seance 7 : Supervision continue
 
