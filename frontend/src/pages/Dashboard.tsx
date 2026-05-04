@@ -213,7 +213,7 @@ export default function Dashboard() {
           ⚠️ Impossible de joindre l'API : {error}
           <br />
           <span className="text-red-400/70 text-xs">
-            Assurez-vous que l'API tourne sur le port 8001 (<code>make api</code> ou <code>make docker-run</code>).
+            Assurez-vous que l'API tourne sur le port 8002 (<code>make api</code> ou <code>make docker-run</code>).
           </span>
         </div>
       )}
